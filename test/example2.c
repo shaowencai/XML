@@ -4,7 +4,7 @@
 int main()
 {
 	int fd;
-    char xmlString[4096*10];
+	char xmlString[4096*10];
 	char mallocBuf[4096*5];
 	xml_node_t *root;
 	xml_node_t *node;
@@ -52,5 +52,4 @@ int main()
 		}
 	}
 	return 1;
-}
 }
