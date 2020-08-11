@@ -1,9 +1,18 @@
 #ifndef SHAO_XML
 #define SHAO_XML
 
+#include<stdio.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#if 0
+#define LOG(fmt,...)   printf(fmt,##__VA_ARGS__)
+#else
+#define LOG(fmt,...)												
+#endif
+
 
 typedef struct xml_attr
 {
@@ -62,6 +71,8 @@ extern char *xml_get_node_nth_attr_value(xml_node_t *node,int nth);
  * @return  the attribute name by key
  ***********************************/
 extern char *xml_get_node_value_by_key(xml_node_t *node,char *key);	
+
+extern xml_node_t *xml_get_first_node_by_depth(xml_node_t *node,int c); 
 
 #ifdef __cplusplus
 }

@@ -31,6 +31,7 @@ static xml_node_t *Xml_New_Item(char *buf,int bufSize,int *pidex)
 	
 	if( *pidex > bufSize )
 	{
+		LOG("mallocBufSize is samll!\r\n");
 		return 0;
 	}
 	
@@ -80,15 +81,15 @@ static char xml_parser_peek(struct xml_parser* parser, int n)
 }
 
 
-static void xml_parser_consume(struct xml_parser* parser, int n) 
+static void xml_parser_consume(struct xml_parser* parser,int n) 
 {
-	// Move the position forward
 	parser->position += n;
 
 	if (parser->position >= parser->length) 
 	{
 		parser->position = parser->length - 1;
 	}
+	return;
 }
 
 
@@ -103,8 +104,9 @@ static char* xml_parse_tag_end(struct xml_parser* parser)
 
 		if ('>' == current) 
 		{
+			xml_skip_whitespace(parser);
 			break;
-		} 
+		}
 		else 
 		{
 			xml_parser_consume(parser, 1);
@@ -177,7 +179,7 @@ static void xml_find_attributes(char* tag_open,struct xml_node* node)
 	char  str_content[256];
 	char* start_name;
 	char* start_content;
-	int   position = 0;
+	int   strLen = 0;
 
 	token = xml_strtok_r(tag_open, " ", &rest); // skip the first value
 	
@@ -186,27 +188,50 @@ static void xml_find_attributes(char* tag_open,struct xml_node* node)
 		return;
 	}
 
-	for(token=xml_strtok_r(NULL," ", &rest); token!=NULL; token=xml_strtok_r(NULL," ", &rest)) 
+	for(token=rest; *token;token=rest) 
 	{
 		// %s=\"%s\" wasn't working for some reason, ugly hack to make it work
-		if(sscanf(token, "%[^=]=\"%[^\"]", str_name, str_content) != 2) 
+		memset(str_name,0,sizeof(str_name));
+		memset(str_content,0,sizeof(str_content));
+		
+		if(sscanf(token, "%[^=\" ]=\"%[^\"]", str_name, str_content) != 2 &&
+		   sscanf(token, "%[^=\" ] = \"%[^\"]", str_name, str_content) != 2 &&
+		   sscanf(token, "%[^=\' ]=\'%[^\']", str_name, str_content) != 2 &&
+		   sscanf(token, "%[^=\' ] = \'%[^\']", str_name, str_content) != 2	&&
+		   sscanf(token, "%[^=\' ]= \'%[^\']", str_name, str_content) != 2	&&
+		   sscanf(token, "%[^=\' ] =\'%[^\']", str_name, str_content) != 2	&&
+		   sscanf(token, "%[^=\" ]= \"%[^\"]", str_name, str_content) != 2 &&
+		   sscanf(token, "%[^=\" ] =\"%[^\"]", str_name, str_content) != 2) 
 		{
-			if(sscanf(token, "%[^=]=\'%[^\']", str_name, str_content) != 2) 
-			{
-				continue;
-			}
+			rest ++;
+			continue;
 		}
 		
-		position = token-tag_open;
-		start_name = &tag_open[position];
-		tag_open[position + strlen(str_name)] = '\0';
+		LOG("%s:%s\r\n",str_name,str_content);
 		
-		start_content = &tag_open[position + strlen(str_name) + 2];
-		tag_open[position + strlen(str_name) + 2 + strlen(str_content)] = '\0';
+		start_name = token;
+		
+		strLen = strlen(str_name);
+		
+		while(memcmp(start_name,str_name,strLen) != 0) start_name++;
+		
+		start_name[strlen(str_name)] = '\0';
+		
+		start_content = &start_name[strLen + 2];
+		
+		strLen = strlen(str_content);
+		
+		while(memcmp(start_content,str_content,strLen) != 0) start_content++;
+		
+		start_content[strlen(str_content)] = '\0';
 
 		node->attributes[node->attrNum].name = start_name;
 		node->attributes[node->attrNum].value = start_content;
 		node->attrNum++;
+		
+		rest = start_content + strlen(str_content) + 1;
+		
+		while(*rest == ' ' || *rest == '\t')rest++;
 	}
 	return;
 }
@@ -314,18 +339,21 @@ static xml_node_t* xml_parse_node(struct xml_parser* parser)
 		{
 			continue;
 		}
+		
+		/* If tag ends with `/' it's self closing, skip content lookup */
+		if (strlen(tag_open) > 0 && '/' == tag_open[strlen(tag_open) - 1]) 
+		{
+			node->name = tag_open;
+			xml_find_attributes(tag_open,node);
+			return node;
+		}
+	
 		break;
 	}
 	
 	node->name = tag_open;
 
 	xml_find_attributes(tag_open,node);
-
-	/* If tag ends with `/' it's self closing, skip content lookup */
-	if (strlen(tag_open) > 0 && '/' == tag_open[strlen(tag_open) - 1]) 
-	{
-		return node;
-	}
 
 	/* If the content does not start with '<', a text content is assumed
 	 */
@@ -335,9 +363,9 @@ static xml_node_t* xml_parse_node(struct xml_parser* parser)
 
 		if (!content) 
 		{
+			LOG("xml_parse_content fail\r\n");
 			return 0;
 		}
-		
 		node->content = content;
 	}
 	else 
@@ -348,6 +376,7 @@ static xml_node_t* xml_parse_node(struct xml_parser* parser)
 			
 			if (!child) 
 			{
+				LOG("xml_parse_node fail\r\n");
 				return 0;
 			}
 			
@@ -377,6 +406,7 @@ static xml_node_t* xml_parse_node(struct xml_parser* parser)
 
 	if (strcmp(tag_open, tag_close)) 
 	{
+		LOG("tag_open(%s) != tag_close(%s)\r\n",tag_open,tag_close);
 		return 0;
 	}
 
@@ -398,6 +428,7 @@ xml_node_t* xml_parse_document(char* buffer, int length,char *mallocBuf,int mall
 
 	if (!length || !mallocBufSize) 
 	{
+		LOG("params is error"); 
 		return 0;
 	}
 
@@ -490,4 +521,17 @@ char *xml_get_node_value_by_key(xml_node_t *node,char *key)
 	return node->attributes[i].value;
 }
 
+
+xml_node_t *xml_get_first_node_by_depth(xml_node_t *node,int depth)				
+{
+	if(depth < 0) return 0;
+	
+	while(depth && node)
+	{
+		node = node->child;
+		depth --;	
+	}
+	
+	return node;
+}
 
