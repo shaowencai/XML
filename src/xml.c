@@ -9,7 +9,7 @@ struct xml_parser {
 	int 		position;
 	int 		length;
 	
-	char		*mallocBuffer;
+	char		*mallocBuffer;		//ÓÃ»§»º´æÇø
 	int		 	mallocBufferSize;
 	int      	mallocIdex;
 };
