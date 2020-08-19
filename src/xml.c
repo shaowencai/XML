@@ -345,6 +345,13 @@ static xml_node_t* xml_parse_node(struct xml_parser* parser)
 		{
 			node->name = tag_open;
 			xml_find_attributes(tag_open,node);
+				
+			//如果是<tag/>的形式 需要将最后的/消除掉 
+			if('/' == tag_open[strlen(tag_open) - 1]) 
+			{
+				tag_open[strlen(tag_open) - 1] = '\0';
+			}
+			
 			return node;
 		}
 	
